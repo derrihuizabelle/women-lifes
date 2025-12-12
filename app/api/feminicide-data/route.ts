@@ -11,6 +11,7 @@ interface FeminicideData {
     date: string
     location: string
     age?: number
+    violenceType: 'feminicide' | 'physical' | 'harassment' | 'psychological' | 'domestic'
     circumstances?: string
     source: string
     url?: string
@@ -18,12 +19,14 @@ interface FeminicideData {
   dataQuality: 'real' | 'statistical' | 'mixed'
   historicalContext: {
     totalSince2018: number
-    yearlyAverage: number
+    averagePerDay: number
+    daysSince2018: number
+    cutoffDate: string
     worstYear: { year: number, totalCases: number }
     bestYear: { year: number, totalCases: number }
     currentTrend: 'increasing' | 'decreasing' | 'stable'
     projection2025: { projectedTotal: number, projection: string }
-    daysAnalyzed: number
+    dataCompleteness: string
   }
 }
 
@@ -32,27 +35,21 @@ let cachedData: FeminicideData | null = null
 let lastFetch = 0
 const CACHE_DURATION = 30 * 60 * 1000 // 30 minutos
 
-async function fetchComprehensiveFeminicideData(): Promise<FeminicideData> {
+async function fetchViolenceData(): Promise<FeminicideData> {
   const now = Date.now()
   
-  // Verificar cache (mas sempre recalcular contadores em tempo real)
-  if (cachedData && (now - lastFetch) < CACHE_DURATION) {
-    // Atualizar apenas contadores em tempo real
-    const updatedData = { ...cachedData }
-    updatedData.countSince2018 = HistoricalDataCalculator.calculateTotalSince2018()
-    
-    // Contador desde publicação do site (pode ser mantido ou ajustado)
-    const siteStartDate = new Date('2024-12-09T00:00:00-03:00')
-    const timeSinceSite = new Date().getTime() - siteStartDate.getTime()
-    const daysSinceSite = timeSinceSite / (1000 * 60 * 60 * 24)
-    updatedData.count = Math.floor(Math.max(0, daysSinceSite) * updatedData.dailyAverage)
-    
-    updatedData.lastUpdated = new Date().toISOString()
-    return updatedData
+  // Verificar se é um novo dia (se sim, invalidar cache)
+  const today = new Date().toDateString()
+  const cacheDate = cachedData ? new Date(cachedData.lastUpdated).toDateString() : null
+  const isNewDay = cacheDate !== today
+  
+  if (cachedData && (now - lastFetch) < CACHE_DURATION && !isNewDay) {
+    console.log('Usando dados do cache')
+    return cachedData
   }
 
   try {
-    console.log('Calculando dados históricos completos (2018-2025)...')
+    console.log('Calculando dados de violência até ontem...')
     
     // Buscar dados históricos
     const historicalContext = HistoricalDataCalculator.getHistoricalContext()
@@ -60,60 +57,63 @@ async function fetchComprehensiveFeminicideData(): Promise<FeminicideData> {
     // Buscar casos recentes de notícias
     const recentCases = await newsService.fetchRecentCases()
     
-    // Calcular estatísticas atualizadas
-    const currentDailyAverage = HistoricalDataCalculator.getCurrentDailyAverage()
-    
-    // Contador desde 2018 (o grande número)
+    // Total desde 2018 até ontem
     const countSince2018 = HistoricalDataCalculator.calculateTotalSince2018()
     
-    // Contador desde publicação do site (número menor, mais dinâmico)
+    // Contador desde publicação do site
     const siteStartDate = new Date('2024-12-09T00:00:00-03:00')
-    const timeSinceSite = new Date().getTime() - siteStartDate.getTime()
-    const daysSinceSite = timeSinceSite / (1000 * 60 * 60 * 24)
-    const countSinceSite = Math.floor(Math.max(0, daysSinceSite) * currentDailyAverage)
+    const yesterday = HistoricalDataCalculator.getCutoffDate()
+    
+    let countSinceSite = 0
+    if (yesterday.getTime() > siteStartDate.getTime()) {
+      const daysSinceSite = (yesterday.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
+      countSinceSite = Math.floor(daysSinceSite * historicalContext.averagePerDay)
+    }
 
-    const comprehensiveData: FeminicideData = {
-      count: countSinceSite, // Desde a publicação do site
-      countSince2018, // Desde 2018 - O GRANDE NÚMERO
-      dailyAverage: currentDailyAverage,
+    const violenceData: FeminicideData = {
+      count: countSinceSite,
+      countSince2018,
+      dailyAverage: historicalContext.averagePerDay,
       lastUpdated: new Date().toISOString(),
-      recentCases: recentCases.slice(0, 12), // Mais casos para mostrar
+      recentCases: recentCases.slice(0, 12),
       dataQuality: recentCases.length > 5 ? 'mixed' : 'statistical',
       historicalContext
     }
 
-    cachedData = comprehensiveData
+    cachedData = violenceData
     lastFetch = now
     
-    console.log('Dados históricos calculados:', {
-      since2018: countSince2018,
-      sinceSite: countSinceSite,
-      dailyAvg: currentDailyAverage,
-      trend: historicalContext.currentTrend,
-      recentCases: recentCases.length
+    console.log('Dados de violência calculados:', {
+      since2018: countSince2018.toLocaleString('pt-BR'),
+      avgPerDay: historicalContext.averagePerDay,
+      trend: historicalContext.currentTrend
     })
     
-    return comprehensiveData
+    return violenceData
 
   } catch (error) {
-    console.error('Erro ao calcular dados históricos:', error)
-    return getFallbackHistoricalData()
+    console.error('Erro ao calcular dados de violência:', error)
+    return getFallbackData()
   }
 }
 
-function getFallbackHistoricalData(): FeminicideData {
+function getFallbackData(): FeminicideData {
   const historicalContext = HistoricalDataCalculator.getHistoricalContext()
   const countSince2018 = HistoricalDataCalculator.calculateTotalSince2018()
   
-  // Contador conservador desde publicação do site
   const siteStartDate = new Date('2024-12-09T00:00:00-03:00')
-  const daysSinceSite = (new Date().getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
-  const countSinceSite = Math.floor(Math.max(0, daysSinceSite) * 10.7)
+  const yesterday = HistoricalDataCalculator.getCutoffDate()
+  
+  let countSinceSite = 0
+  if (yesterday.getTime() > siteStartDate.getTime()) {
+    const daysSinceSite = (yesterday.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
+    countSinceSite = Math.floor(daysSinceSite * 1748) // Média conservadora
+  }
 
   return {
     count: countSinceSite,
     countSince2018,
-    dailyAverage: 10.7, // Média conservadora
+    dailyAverage: 1748,
     lastUpdated: new Date().toISOString(),
     recentCases: [],
     dataQuality: 'statistical',
@@ -125,68 +125,31 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    const data = await fetchComprehensiveFeminicideData()
+    const data = await fetchViolenceData()
     const processingTime = Date.now() - startTime
     
-    console.log(`API histórica processada em ${processingTime}ms`)
-    console.log(`Total desde 2018: ${data.countSince2018.toLocaleString('pt-BR')}`)
+    console.log(`API de violência processada em ${processingTime}ms`)
     
     return NextResponse.json(data, {
       status: 200,
       headers: {
-        'Cache-Control': 'public, max-age=1800', // 30 minutos
+        'Cache-Control': 'public, max-age=1800',
         'Access-Control-Allow-Origin': '*',
         'X-Processing-Time': processingTime.toString(),
         'X-Data-Quality': data.dataQuality,
-        'X-Historical-Base': '2018-2025',
         'X-Total-Since-2018': data.countSince2018.toString(),
         'X-Last-Update': data.lastUpdated
       }
     })
     
   } catch (error) {
-    console.error('Erro crítico na API histórica:', error)
+    console.error('Erro crítico na API de violência:', error)
     
     return NextResponse.json(
       { 
         error: 'Erro interno do servidor',
-        fallback: getFallbackHistoricalData()
+        fallback: getFallbackData()
       },
-      { status: 500 }
-    )
-  }
-}
-
-// Endpoint para estatísticas históricas detalhadas
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { action } = body
-
-    if (action === 'historical-stats') {
-      const stats = HistoricalDataCalculator.getHistoricalContext()
-      return NextResponse.json(stats)
-    }
-
-    if (action === 'refresh-cache') {
-      cachedData = null
-      lastFetch = 0
-      const data = await fetchComprehensiveFeminicideData()
-      
-      return NextResponse.json({
-        message: 'Cache histórico atualizado',
-        data
-      })
-    }
-
-    return NextResponse.json(
-      { error: 'Ação não reconhecida' },
-      { status: 400 }
-    )
-    
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Erro ao processar requisição' },
       { status: 500 }
     )
   }

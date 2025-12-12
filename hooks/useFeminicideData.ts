@@ -9,6 +9,7 @@ interface FeminicideData {
     date: string
     location: string
     age?: number
+    violenceType: 'feminicide' | 'physical' | 'harassment' | 'psychological' | 'domestic'
     circumstances?: string
     source: string
     url?: string
@@ -16,12 +17,14 @@ interface FeminicideData {
   dataQuality: 'real' | 'statistical' | 'mixed'
   historicalContext: {
     totalSince2018: number
-    yearlyAverage: number
+    averagePerDay: number
+    daysSince2018: number
+    cutoffDate: string
     worstYear: { year: number, totalCases: number }
     bestYear: { year: number, totalCases: number }
     currentTrend: 'increasing' | 'decreasing' | 'stable'
     projection2025: { projectedTotal: number, projection: string }
-    daysAnalyzed: number
+    dataCompleteness: string
   }
 }
 
@@ -30,24 +33,25 @@ interface UseFeminicideDataReturn {
   isLoading: boolean
   error: string | null
   refetch: () => Promise<void>
-  lastFetchTime: Date | null
 }
 
 const INITIAL_DATA: FeminicideData = {
   count: 0,
   countSince2018: 0,
-  dailyAverage: 10.7,
+  dailyAverage: 1748,
   lastUpdated: new Date().toISOString(),
   recentCases: [],
   dataQuality: 'statistical',
   historicalContext: {
     totalSince2018: 0,
-    yearlyAverage: 0,
+    averagePerDay: 0,
+    daysSince2018: 0,
+    cutoffDate: new Date().toISOString(),
     worstYear: { year: 2018, totalCases: 0 },
     bestYear: { year: 2018, totalCases: 0 },
     currentTrend: 'stable',
     projection2025: { projectedTotal: 0, projection: 'stable' },
-    daysAnalyzed: 0
+    dataCompleteness: 'Carregando...'
   }
 }
 
@@ -55,10 +59,8 @@ export function useFeminicideData(): UseFeminicideDataReturn {
   const [data, setData] = useState<FeminicideData>(INITIAL_DATA)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null)
   
   const abortControllerRef = useRef<AbortController | null>(null)
-  const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Função para buscar dados históricos da API
   const fetchData = useCallback(async () => {
@@ -70,7 +72,7 @@ export function useFeminicideData(): UseFeminicideDataReturn {
       abortControllerRef.current = new AbortController()
       setError(null)
       
-      console.log('Buscando dados históricos (2018-2025)...')
+      console.log('Buscando dados de violência (até ontem)...')
       
       const response = await fetch('/api/feminicide-data', {
         signal: abortControllerRef.current.signal,
@@ -86,15 +88,16 @@ export function useFeminicideData(): UseFeminicideDataReturn {
       const newData: FeminicideData = await response.json()
       
       setData(newData)
-      setLastFetchTime(new Date())
       setError(null)
       
-      console.log('Dados históricos carregados:', {
+      const cutoffDate = new Date(newData.historicalContext.cutoffDate)
+      
+      console.log('Dados de violência carregados:', {
+        period: `2018 até ${cutoffDate.toLocaleDateString('pt-BR')}`,
         since2018: newData.countSince2018.toLocaleString('pt-BR'),
-        sinceSite: newData.count,
+        avgPerDay: newData.historicalContext.averagePerDay,
         trend: newData.historicalContext.currentTrend,
-        worstYear: `${newData.historicalContext.worstYear.year} (${newData.historicalContext.worstYear.totalCases})`,
-        cases: newData.recentCases.length
+        completeness: newData.historicalContext.dataCompleteness
       })
 
     } catch (err) {
@@ -104,64 +107,32 @@ export function useFeminicideData(): UseFeminicideDataReturn {
       }
       
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido'
-      console.error('Erro ao buscar dados históricos:', errorMessage)
+      console.error('Erro ao buscar dados de violência:', errorMessage)
       setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  // Contador em tempo real para ambos os números
-  useEffect(() => {
-    if (isLoading || !data.lastUpdated) return
-
-    const updateRealtimeCount = () => {
-      const lastApiUpdate = new Date(data.lastUpdated)
-      const now = new Date()
-      const timeSinceApiUpdate = now.getTime() - lastApiUpdate.getTime()
-      const millisecondsPerDay = 24 * 60 * 60 * 1000
-      const deathsPerMs = data.dailyAverage / millisecondsPerDay
-      
-      // Calcular mortes adicionais desde a última atualização da API
-      const additionalDeaths = Math.floor(timeSinceApiUpdate * deathsPerMs)
-      
-      // Atualizar ambos os contadores
-      const newCountSinceSite = Math.max(0, (data.count || 0) + additionalDeaths)
-      const newCountSince2018 = Math.max(0, (data.countSince2018 || 0) + additionalDeaths)
-
-      setData(prev => {
-        // Otimização: só atualizar se os valores mudaram
-        if (prev.count === newCountSinceSite && prev.countSince2018 === newCountSince2018) {
-          return prev
-        }
-        
-        return { 
-          ...prev, 
-          count: newCountSinceSite,
-          countSince2018: newCountSince2018
-        }
-      })
-    }
-
-    updateRealtimeCount()
-    realtimeIntervalRef.current = setInterval(updateRealtimeCount, 10000) // A cada 10 segundos
-
-    return () => {
-      if (realtimeIntervalRef.current) {
-        clearInterval(realtimeIntervalRef.current)
-      }
-    }
-  }, [data.lastUpdated, data.dailyAverage, data.count, data.countSince2018, isLoading])
-
-  // Buscar dados iniciais
+  // Buscar dados iniciais e configurar atualizações
   useEffect(() => {
     fetchData()
 
-    // Atualizar dados históricos a cada hora (dados mais estáveis)
+    // Atualizar dados a cada hora
     const dataUpdateInterval = setInterval(fetchData, 60 * 60 * 1000)
+
+    // Verificar se passou da meia-noite (novo dia = novos dados)
+    const midnightCheck = setInterval(() => {
+      const now = new Date()
+      if (now.getHours() === 0 && now.getMinutes() < 5) {
+        console.log('Novo dia detectado, atualizando dados...')
+        fetchData()
+      }
+    }, 5 * 60 * 1000)
 
     return () => {
       clearInterval(dataUpdateInterval)
+      clearInterval(midnightCheck)
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
@@ -178,35 +149,6 @@ export function useFeminicideData(): UseFeminicideDataReturn {
     data,
     isLoading,
     error,
-    refetch,
-    lastFetchTime
+    refetch
   }
-}
-
-// Hook adicional para estatísticas históricas detalhadas
-export function useHistoricalStats() {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const fetchHistoricalStats = useCallback(async () => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/feminicide-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'historical-stats' })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
-    } catch (error) {
-      console.error('Erro ao buscar estatísticas históricas:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { stats, loading, fetchHistoricalStats }
 }

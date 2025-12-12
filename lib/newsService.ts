@@ -1,4 +1,5 @@
-// Serviço para buscar dados reais sobre feminicídios de fontes confiáveis
+// Serviço para buscar dados sobre violência contra a mulher (todas as formas)
+// Incluindo: feminicídios, agressões, assédio, violência doméstica, psicológica
 
 interface NewsSource {
   name: string
@@ -7,10 +8,11 @@ interface NewsSource {
   searchTerms: string[]
 }
 
-interface FeminicideCase {
+interface ViolenceCase {
   date: string
   location: string
   age?: number
+  violenceType: 'feminicide' | 'physical' | 'harassment' | 'psychological' | 'domestic'
   circumstances?: string
   source: string
   url?: string
@@ -22,17 +24,26 @@ export class NewsService {
       name: 'NewsAPI',
       url: 'https://newsapi.org/v2/everything',
       apiKey: process.env.NEWS_API_KEY,
-      searchTerms: ['feminicídio', 'mulher assassinada', 'violência doméstica']
+      searchTerms: [
+        // Feminicídios
+        'feminicídio', 'mulher assassinada', 'mulher morta pelo marido',
+        // Violência física
+        'violência doméstica', 'mulher agredida', 'espancamento de mulher',
+        // Assédio
+        'assédio sexual', 'importunação sexual', 'abuso sexual',
+        // Violência psicológica
+        'violência psicológica', 'ameaça contra mulher', 'perseguição stalking'
+      ]
     },
     {
       name: 'G1 RSS',
       url: 'https://g1.globo.com/rss/g1/',
-      searchTerms: ['feminicídio', 'violência contra mulher']
+      searchTerms: ['violência contra mulher', 'feminicídio', 'lei maria da penha']
     }
   ]
 
-  async fetchRecentCases(): Promise<FeminicideCase[]> {
-    const cases: FeminicideCase[] = []
+  async fetchRecentCases(): Promise<ViolenceCase[]> {
+    const cases: ViolenceCase[] = []
     
     try {
       // Integração com NewsAPI (se a chave estiver configurada)
@@ -52,21 +63,21 @@ export class NewsService {
       // Ordenar por data (mais recente primeiro)
       return cases
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 20) // Limitar a 20 casos mais recentes
+        .slice(0, 30) // Mais casos para mostrar diversidade
 
     } catch (error) {
-      console.error('Erro ao buscar casos recentes:', error)
+      console.error('Erro ao buscar casos de violência:', error)
       return this.getFallbackData()
     }
   }
 
-  private async fetchFromNewsAPI(): Promise<FeminicideCase[]> {
-    const cases: FeminicideCase[] = []
+  private async fetchFromNewsAPI(): Promise<ViolenceCase[]> {
+    const cases: ViolenceCase[] = []
     
     for (const term of this.sources[0].searchTerms) {
       try {
         const response = await fetch(
-          `${this.sources[0].url}?q=${encodeURIComponent(term)}&language=pt&sortBy=publishedAt&pageSize=10`,
+          `${this.sources[0].url}?q=${encodeURIComponent(term)}&language=pt&sortBy=publishedAt&pageSize=5`,
           {
             headers: {
               'X-API-Key': process.env.NEWS_API_KEY!
@@ -87,48 +98,57 @@ export class NewsService {
     return cases
   }
 
-  private async fetchFromRSSFeeds(): Promise<FeminicideCase[]> {
+  private async fetchFromRSSFeeds(): Promise<ViolenceCase[]> {
     // Implementar parser de RSS para fontes públicas
-    // Por exemplo: G1, Folha, UOL, etc.
     return []
   }
 
-  private async fetchFromOrganizations(): Promise<FeminicideCase[]> {
+  private async fetchFromOrganizations(): Promise<ViolenceCase[]> {
     // Integrar com APIs de organizações como:
     // - Instituto Patrícia Galvão
-    // - Mapa da Violência  
-    // - Dados abertos do governo
+    // - Instituto Maria da Penha
+    // - Central de Atendimento à Mulher (Disque 180)
     return []
   }
 
-  private parseNewsAPIResponse(articles: any[]): FeminicideCase[] {
+  private parseNewsAPIResponse(articles: any[]): ViolenceCase[] {
     return articles
-      .filter(article => this.isFeminicideRelated(article))
+      .filter(article => this.isViolenceRelated(article))
       .map(article => this.extractCaseFromArticle(article))
       .filter(Boolean)
   }
 
-  private isFeminicideRelated(article: any): boolean {
+  private isViolenceRelated(article: any): boolean {
     const content = `${article.title} ${article.description}`.toLowerCase()
     const keywords = [
-      'feminicídio', 'mulher assassinada', 'violência doméstica',
-      'maria da penha', 'companheiro matou', 'ex-marido matou'
+      // Feminicídios
+      'feminicídio', 'mulher assassinada', 'mulher morta', 'mulher foi morta',
+      // Violência física
+      'violência doméstica', 'mulher agredida', 'espancamento', 'mulher foi agredida',
+      // Assédio
+      'assédio sexual', 'importunação sexual', 'abuso sexual', 'estupro',
+      // Violência psicológica
+      'ameaça contra mulher', 'perseguição', 'stalking', 'violência psicológica',
+      // Lei Maria da Penha
+      'maria da penha', 'medida protetiva', 'violência contra a mulher'
     ]
     
     return keywords.some(keyword => content.includes(keyword))
   }
 
-  private extractCaseFromArticle(article: any): FeminicideCase | null {
+  private extractCaseFromArticle(article: any): ViolenceCase | null {
     try {
-      // Extrair informações do título e descrição usando regex e NLP básico
+      const content = `${article.title} ${article.description}`.toLowerCase()
       const location = this.extractLocation(article.title + ' ' + article.description)
       const age = this.extractAge(article.title + ' ' + article.description)
+      const violenceType = this.classifyViolenceType(content)
       
       return {
         date: article.publishedAt,
         location: location || 'Local não informado',
         age,
-        circumstances: this.extractCircumstances(article.title + ' ' + article.description),
+        violenceType,
+        circumstances: this.extractCircumstances(content),
         source: article.source.name,
         url: article.url
       }
@@ -136,6 +156,23 @@ export class NewsService {
       console.error('Erro ao extrair dados do artigo:', error)
       return null
     }
+  }
+
+  private classifyViolenceType(content: string): ViolenceCase['violenceType'] {
+    if (content.includes('feminicídio') || content.includes('assassinada') || content.includes('morta')) {
+      return 'feminicide'
+    }
+    if (content.includes('assédio') || content.includes('importunação') || content.includes('abuso sexual')) {
+      return 'harassment'
+    }
+    if (content.includes('agredida') || content.includes('espancamento') || content.includes('lesão corporal')) {
+      return 'physical'
+    }
+    if (content.includes('ameaça') || content.includes('perseguição') || content.includes('stalking')) {
+      return 'psychological'
+    }
+    
+    return 'domestic' // Padrão para violência doméstica geral
   }
 
   private extractLocation(text: string): string | null {
@@ -163,32 +200,59 @@ export class NewsService {
     return undefined
   }
 
-  private extractCircumstances(text: string): string {
+  private extractCircumstances(content: string): string {
     const circumstances = []
     
-    if (text.includes('companheiro') || text.includes('marido') || text.includes('namorado')) {
-      circumstances.push('Violência doméstica')
+    // Relação com agressor
+    if (content.includes('companheiro') || content.includes('marido') || content.includes('namorado')) {
+      circumstances.push('Violência por parceiro íntimo')
     }
-    if (text.includes('tiro') || text.includes('bala')) {
+    if (content.includes('ex-marido') || content.includes('ex-companheiro') || content.includes('ex-namorado')) {
+      circumstances.push('Violência por ex-parceiro')
+    }
+    
+    // Tipo de agressão
+    if (content.includes('tiro') || content.includes('bala') || content.includes('disparos')) {
       circumstances.push('Arma de fogo')
     }
-    if (text.includes('faca') || text.includes('esfaqueada')) {
+    if (content.includes('faca') || content.includes('esfaqueada') || content.includes('facadas')) {
       circumstances.push('Arma branca')
     }
+    if (content.includes('estrangulada') || content.includes('enforcada')) {
+      circumstances.push('Asfixia')
+    }
     
-    return circumstances.join(', ') || 'Circunstâncias não informadas'
+    // Local
+    if (content.includes('em casa') || content.includes('residência') || content.includes('no lar')) {
+      circumstances.push('No ambiente doméstico')
+    }
+    if (content.includes('na rua') || content.includes('via pública')) {
+      circumstances.push('Em via pública')
+    }
+    
+    // Contexto
+    if (content.includes('discussão') || content.includes('briga') || content.includes('desentendimento')) {
+      circumstances.push('Após discussão')
+    }
+    if (content.includes('separação') || content.includes('divórcio') || content.includes('fim do relacionamento')) {
+      circumstances.push('Contexto de separação')
+    }
+    
+    return circumstances.length > 0 ? circumstances.join(', ') : 'Circunstâncias não informadas'
   }
 
-  private getFallbackData(): FeminicideCase[] {
-    // Dados de fallback baseados em estatísticas reais (anonimizados)
+  private getFallbackData(): ViolenceCase[] {
+    // Dados de fallback representando diferentes tipos de violência (anonimizados)
     const today = new Date()
+    const violenceTypes: ViolenceCase['violenceType'][] = ['feminicide', 'physical', 'harassment', 'psychological', 'domestic']
     
-    return Array.from({ length: 7 }, (_, i) => ({
+    return Array.from({ length: 20 }, (_, i) => ({
       date: new Date(today.getTime() - i * 24 * 60 * 60 * 1000).toISOString(),
       location: this.getRandomLocation(),
-      age: Math.floor(Math.random() * 40) + 18,
+      age: Math.floor(Math.random() * 50) + 18,
+      violenceType: violenceTypes[i % violenceTypes.length],
       circumstances: this.getRandomCircumstances(),
-      source: 'Dados estatísticos'
+      source: 'Dados estatísticos representativos'
     }))
   }
 
@@ -196,17 +260,23 @@ export class NewsService {
     const locations = [
       'São Paulo, SP', 'Rio de Janeiro, RJ', 'Belo Horizonte, MG', 'Salvador, BA',
       'Fortaleza, CE', 'Brasília, DF', 'Curitiba, PR', 'Recife, PE', 'Porto Alegre, RS',
-      'Manaus, AM', 'Belém, PA', 'Goiânia, GO', 'Guarulhos, SP', 'Campinas, SP'
+      'Manaus, AM', 'Belém, PA', 'Goiânia, GO', 'Guarulhos, SP', 'Campinas, SP',
+      'São Luís, MA', 'Maceió, AL', 'Natal, RN', 'João Pessoa, PB'
     ]
     return locations[Math.floor(Math.random() * locations.length)]
   }
 
   private getRandomCircumstances(): string {
     const circumstances = [
-      'Violência doméstica',
-      'Violência doméstica - ex-companheiro',
-      'Violência doméstica - companheiro atual',
-      'Feminicídio seguido de tentativa de suicídio'
+      'Violência doméstica por parceiro íntimo',
+      'Violência por ex-companheiro após separação',
+      'Assédio sexual no ambiente de trabalho',
+      'Importunação sexual em transporte público',
+      'Violência psicológica e ameaças',
+      'Agressão física em contexto doméstico',
+      'Perseguição e stalking digital',
+      'Violência sexual por conhecido',
+      'Ameaças após denúncia à polícia'
     ]
     return circumstances[Math.floor(Math.random() * circumstances.length)]
   }
