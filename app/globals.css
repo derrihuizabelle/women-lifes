@@ -33,17 +33,8 @@ body {
 }
 
 .loading-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid #ff4757;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  font-size: 4rem;
+  color: #ff4757;
 }
 
 .loading-section p {
@@ -71,6 +62,7 @@ body {
 
 .error-icon {
   font-size: 4rem;
+  color: #ff4757;
 }
 
 .retry-button {
@@ -130,7 +122,7 @@ body {
   font-weight: 900;
   color: white;
   text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   line-height: 1.1;
   text-transform: uppercase;
   letter-spacing: 4px;
@@ -193,29 +185,8 @@ body {
 .source-icon {
   font-size: 1.3rem;
   min-width: 1.5rem;
-  text-align: center;
-}
-
-.methodology-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.method-item {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.method-icon {
-  font-size: 1.2rem;
+  color: #ffd700;
+  margin-top: 0.1rem;
 }
 
 /* Message Section */
@@ -310,6 +281,16 @@ body {
 .action-icon {
   font-size: 3.5rem;
   margin-bottom: 1rem;
+  color: white;
+  transition: color 0.3s ease;
+}
+
+.action-card.emergency .action-icon {
+  color: #ff4757;
+}
+
+.action-card:hover .action-icon {
+  color: #ffd700;
 }
 
 .action-title {
@@ -384,8 +365,18 @@ body {
     gap: 1.5rem;
   }
   
-  .methodology-details {
-    grid-template-columns: 1fr;
+  .methodology-sources {
+    padding: 1rem;
+  }
+  
+  .source-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .action-icon {
+    font-size: 3rem;
   }
 }
 
@@ -413,5 +404,13 @@ body {
   
   .methodology-section {
     padding: 2rem;
+  }
+  
+  .action-icon {
+    font-size: 2.5rem;
+  }
+  
+  .source-icon {
+    font-size: 1.1rem;
   }
 }

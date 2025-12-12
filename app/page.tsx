@@ -1,6 +1,21 @@
 'use client'
 
 import { useFeminicideData } from '../hooks/useFeminicideData'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faExclamationTriangle,
+  faSpinner,
+  faBuilding,
+  faBolt,
+  faNewspaper,
+  faPhone,
+  faShieldAlt,
+  faHome,
+  faBalanceScale,
+  faHandHoldingHeart,
+  faHandBackFist
+} from '@fortawesome/free-solid-svg-icons'
+import { faUser } from '@fortawesome/free-solid-svg-icons/faUser'
 
 export default function Home() {
   const { data, isLoading, error, refetch } = useFeminicideData()
@@ -24,7 +39,7 @@ export default function Home() {
     return (
       <div className="container">
         <div className="loading-section">
-          <div className="loading-spinner"></div>
+          <FontAwesomeIcon icon={faSpinner} className="loading-spinner" spin />
           <p>Compilando dados de violência...</p>
           <p className="loading-detail">
             Calculando casos de violência contra mulheres de janeiro/2018 até ontem
@@ -38,7 +53,7 @@ export default function Home() {
     return (
       <div className="container">
         <div className="error-section">
-          <div className="error-icon">⚠️</div>
+          <FontAwesomeIcon icon={faExclamationTriangle} className="error-icon" />
           <h2>Erro ao carregar dados de violência</h2>
           <p>{error}</p>
           <button 
@@ -68,14 +83,12 @@ export default function Home() {
       </div>
 
       <div className="message-section">
-        <h2>EPIDEMIA DE VIOLÊNCIA</h2>
+        <h2>PAREM DE NOS MATAR</h2>
         <p>
           De janeiro de 2018 até ontem, <strong>{formatNumber(data.countSince2018)}</strong> mulheres 
           brasileiras sofreram algum tipo de violência registrada oficialmente.
         </p>
         <p>
-          Isso representa <strong>{formatNumber(Math.floor(data.historicalContext?.averagePerDay || 0))} casos 
-          por dia</strong> durante {formatNumber(data.historicalContext?.daysSince2018 || 0)} dias consecutivos.
           A cada hora, cerca de <strong>{Math.floor((data.historicalContext?.averagePerDay || 0) / 24)} mulheres </strong> 
           sofrem violência no Brasil.
         </p>
@@ -88,27 +101,40 @@ export default function Home() {
         <h3>CANAIS DE DENÚNCIA E PROTEÇÃO</h3>
         <div className="action-grid">
           <div className="action-card emergency" onClick={() => window.open('tel:180')}>
-            <div className="action-icon">🆘</div>
+            <FontAwesomeIcon icon={faPhone} className="action-icon" />
             <div className="action-title">Disque 180</div>
             <div className="action-description">Central de atendimento à mulher<br /><strong>Para TODOS os tipos de violência</strong></div>
           </div>
           
           <div className="action-card emergency" onClick={() => window.open('tel:190')}>
-            <div className="action-icon">🚔</div>
+            <FontAwesomeIcon icon={faShieldAlt} className="action-icon" />
             <div className="action-title">Disque 190</div>
             <div className="action-description">Polícia Militar<br /><strong>Emergências e flagrantes</strong></div>
           </div>
-          
-          <div className="action-card" onClick={() => window.open('https://www.gov.br/mdh/pt-br/navegue-por-temas/politicas-para-mulheres/arquivo/centro-de-atendimento-a-mulher')}>
-            <div className="action-icon">🏠</div>
-            <div className="action-title">Casa da Mulher</div>
-            <div className="action-description">Atendimento especializado integrado</div>
+
+          <div className="action-card emergency" onClick={() => window.open('tel:190')}>
+            <FontAwesomeIcon icon={faUser} className="action-icon" />
+            <div className="action-title">Disque 181</div>
+            <div className="action-description">Disk denúncia<br /><strong>Denúncias anônimas</strong></div>
           </div>
           
+        
+          <div className="action-card" onClick={() => window.open('https://www.institutomariadapenha.org.br/')}>
+            <FontAwesomeIcon icon={faBalanceScale} className="action-icon" />
+            <div className="action-title">Instituto Maria da Penha</div>
+            <div className="action-description">Ajuda, educação e proteção para vítimas de violência</div>
+          </div>
+
+          <div className="action-card" onClick={() => window.open('https://www.justiceiras.org.br/')}>
+            <FontAwesomeIcon icon={faHandBackFist} className="action-icon" />
+            <div className="action-title">Projeto Justiceiras</div>
+            <div className="action-description">Orientação jurídica, psicológica, socioassistencial e rede de apoio para vítimas de violência</div>
+          </div>
+
           <div className="action-card" onClick={() => window.open('https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11340.htm')}>
-            <div className="action-icon">⚖️</div>
-            <div className="action-title">Lei Maria da Penha</div>
-            <div className="action-description">Proteção contra TODAS as violências</div>
+            <FontAwesomeIcon icon={faHandHoldingHeart} className="action-icon" />
+            <div className="action-title">Mapa do Acolhimento</div>
+            <div className="action-description">Acolhimento e apoio especializado para vítimas de violência</div>
           </div>
         </div>
       </div>
@@ -124,15 +150,15 @@ export default function Home() {
         
         <div className="methodology-sources">
           <div className="source-item">
-            <span className="source-icon">🏛️</span>
+            <FontAwesomeIcon icon={faBuilding} className="source-icon" />
             <span>Dados oficiais: IBGE, IPEA, FBSP, SSPs Estaduais e Anuário de Segurança Pública</span>
           </div>
           <div className="source-item">
-            <span className="source-icon">⚡</span>
+            <FontAwesomeIcon icon={faBolt} className="source-icon" />
             <span>Cálculo em tempo real da média diária a cada novo carregamento</span>
           </div>
           <div className="source-item">
-            <span className="source-icon">📰</span>
+            <FontAwesomeIcon icon={faNewspaper} className="source-icon" />
             <span>Fontes jornalísticas: G1, Portal da Mulher, CNN Brasil</span>
           </div>
         </div>
