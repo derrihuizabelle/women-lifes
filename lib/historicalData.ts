@@ -10,7 +10,6 @@ export interface YearlyData {
   harassment: number
   dailyAverage: number
   source: string
-  notes?: string
 }
 
 export interface MonthlyData {
@@ -39,8 +38,7 @@ export const HISTORICAL_YEARLY_DATA: YearlyData[] = [
     physicalViolence: 442000,
     harassment: 46000,
     dailyAverage: 1348,
-    source: "Atlas da Violência 2021 + Disque 180 + SSPs estaduais",
-    notes: "Redução geral na violência registrada"
+    source: "Atlas da Violência 2021 + Disque 180 + SSPs estaduais"
   },
   {
     year: 2020,
@@ -49,8 +47,7 @@ export const HISTORICAL_YEARLY_DATA: YearlyData[] = [
     physicalViolence: 590000,
     harassment: 54000,
     dailyAverage: 1775,
-    source: "Atlas da Violência 2022 + Disque 180 + SSPs estaduais",
-    notes: "Explosão da violência doméstica durante pandemia COVID-19"
+    source: "Atlas da Violência 2022 + Disque 180 + SSPs estaduais"
   },
   {
     year: 2021,
@@ -77,8 +74,7 @@ export const HISTORICAL_YEARLY_DATA: YearlyData[] = [
     physicalViolence: 580000,
     harassment: 54000,
     dailyAverage: 1748,
-    source: "Atlas da Violência 2024 + 18º Anuário de Segurança Pública + Disque 180",
-    notes: "Recorde de denúncias registradas"
+    source: "Atlas da Violência 2024 + 18º Anuário de Segurança Pública + Disque 180"
   }
 ]
 
@@ -115,57 +111,39 @@ export const MONTHLY_DATA_2025: MonthlyData[] = [
 
 export class HistoricalDataCalculator {
   
-  // Calcular total de violência contra mulheres até 1 dia antes da data atual
   static calculateTotalSince2018(): number {
-    const START_DATE = new Date('2018-01-01T00:00:00-03:00')
     const cutoffDate = this.getCutoffDate()
-    
-    let totalViolence = 0
-
-    // Somar anos completos (2018-2023)
-    HISTORICAL_YEARLY_DATA.forEach(yearData => {
-      if (yearData.year < cutoffDate.getFullYear()) {
-        totalViolence += yearData.totalCases
-      }
-    })
-
-    // Somar meses até o mês anterior ao atual
     const cutoffYear = cutoffDate.getFullYear()
     const cutoffMonth = cutoffDate.getMonth() + 1
     const cutoffDay = cutoffDate.getDate()
 
-    if (cutoffYear === 2024) {
-      MONTHLY_DATA_2024.forEach(monthData => {
-        if (monthData.month < cutoffMonth) {
-          totalViolence += monthData.cases
-        } else if (monthData.month === cutoffMonth) {
-          const daysInMonth = new Date(cutoffYear, cutoffMonth, 0).getDate()
-          const proportionalCases = Math.floor((monthData.cases / daysInMonth) * cutoffDay)
-          totalViolence += proportionalCases
-        }
-      })
-    } else if (cutoffYear === 2025) {
-      // Somar todo 2024
-      MONTHLY_DATA_2024.forEach(monthData => {
+    let totalViolence = 0
+
+    HISTORICAL_YEARLY_DATA.forEach(yearData => {
+        totalViolence += yearData.totalCases  
+    })
+
+    MONTHLY_DATA_2024.forEach(monthData => {
+      totalViolence += monthData.cases
+    })
+
+  
+    // Somar 2025 até o mês de corte
+    MONTHLY_DATA_2025.forEach(monthData => {
+      if (monthData.month < cutoffMonth) {
         totalViolence += monthData.cases
-      })
-      
-      // Somar 2025 até o mês de corte
-      MONTHLY_DATA_2025.forEach(monthData => {
-        if (monthData.month < cutoffMonth) {
-          totalViolence += monthData.cases
-        } else if (monthData.month === cutoffMonth) {
-          const daysInMonth = new Date(cutoffYear, cutoffMonth, 0).getDate()
-          const proportionalCases = Math.floor((monthData.cases / daysInMonth) * cutoffDay)
-          totalViolence += proportionalCases
-        }
-      })
-    }
+      } else if (monthData.month === cutoffMonth) {
+        const daysInMonth = new Date(cutoffYear, cutoffMonth, 0).getDate()
+        const proportionalCases = Math.floor((monthData.cases / daysInMonth) * cutoffDay)
+        totalViolence += proportionalCases
+      }
+    })
+    
 
     return totalViolence
   }
 
-  // Obter data de corte (1 dia antes da atual)
+  // data de corte = 1 dia antes do dia atual
   static getCutoffDate(): Date {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 1)
@@ -173,7 +151,7 @@ export class HistoricalDataCalculator {
     return cutoff
   }
 
-  // Obter contexto histórico completo
+
   static getHistoricalContext() {
     const cutoffDate = this.getCutoffDate()
     const totalSince2018 = this.calculateTotalSince2018()
@@ -184,29 +162,8 @@ export class HistoricalDataCalculator {
       totalSince2018,
       averagePerDay,
       daysSince2018,
-      cutoffDate: cutoffDate.toISOString(),
-      worstYear: HISTORICAL_YEARLY_DATA.reduce((worst, current) => 
-        current.totalCases > worst.totalCases ? current : worst),
-      bestYear: HISTORICAL_YEARLY_DATA.reduce((best, current) => 
-        current.totalCases < best.totalCases ? current : best),
-      currentTrend: this.calculateTrend(),
-      projection2025: this.projectEndOf2025(),
-      dataCompleteness: `Dados consolidados até ${cutoffDate.toLocaleDateString('pt-BR')}`
+      cutoffDate: cutoffDate.toISOString()
     }
-  }
-
-  private static calculateTrend(): 'increasing' | 'decreasing' | 'stable' {
-    const recent3Years = HISTORICAL_YEARLY_DATA.slice(-3)
-    const older3Years = HISTORICAL_YEARLY_DATA.slice(0, 3)
-    
-    const recentAvg = recent3Years.reduce((sum, y) => sum + y.totalCases, 0) / 3
-    const olderAvg = older3Years.reduce((sum, y) => sum + y.totalCases, 0) / 3
-    
-    const change = (recentAvg - olderAvg) / olderAvg
-    
-    if (change > 0.05) return 'increasing'
-    if (change < -0.05) return 'decreasing'
-    return 'stable'
   }
 
   private static calculateDaysSince2018(): number {
@@ -214,21 +171,5 @@ export class HistoricalDataCalculator {
     const cutoffDate = this.getCutoffDate()
     const diffMs = cutoffDate.getTime() - START_DATE.getTime()
     return Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  }
-
-  private static projectEndOf2025(): { projectedTotal: number, projection: string } {
-    const cutoffDate = this.getCutoffDate()
-    const currentYearData = MONTHLY_DATA_2025.slice(0, cutoffDate.getMonth() + 1)
-    const currentTotal = currentYearData.reduce((sum, month) => sum + month.cases, 0)
-    
-    const remainingMonths = 12 - (cutoffDate.getMonth() + 1)
-    const avgMonthly = currentTotal / (cutoffDate.getMonth() + 1)
-    const projectedTotal = currentTotal + (avgMonthly * remainingMonths)
-
-    let projection = 'stable'
-    if (projectedTotal > 680000) projection = 'pessimistic'
-    else if (projectedTotal < 620000) projection = 'optimistic'
-    
-    return { projectedTotal: Math.floor(projectedTotal), projection }
   }
 }

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { newsService } from '../../../lib/newsService'
 import { HistoricalDataCalculator } from '../../../lib/historicalData'
 
 interface FeminicideData {
@@ -7,87 +6,49 @@ interface FeminicideData {
   countSince2018: number
   dailyAverage: number
   lastUpdated: string
-  recentCases: Array<{
-    date: string
-    location: string
-    age?: number
-    violenceType: 'feminicide' | 'physical' | 'harassment' | 'psychological' | 'domestic'
-    circumstances?: string
-    source: string
-    url?: string
-  }>
-  dataQuality: 'real' | 'statistical' | 'mixed'
   historicalContext: {
     totalSince2018: number
     averagePerDay: number
     daysSince2018: number
     cutoffDate: string
-    worstYear: { year: number, totalCases: number }
-    bestYear: { year: number, totalCases: number }
-    currentTrend: 'increasing' | 'decreasing' | 'stable'
-    projection2025: { projectedTotal: number, projection: string }
-    dataCompleteness: string
   }
 }
 
 // Cache em memória
 let cachedData: FeminicideData | null = null
 let lastFetch = 0
-const CACHE_DURATION = 30 * 60 * 1000 // 30 minutos
+const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 horas
 
 async function fetchViolenceData(): Promise<FeminicideData> {
   const now = Date.now()
   
-  // Verificar se é um novo dia (se sim, invalidar cache)
   const today = new Date().toDateString()
   const cacheDate = cachedData ? new Date(cachedData.lastUpdated).toDateString() : null
   const isNewDay = cacheDate !== today
   
   if (cachedData && (now - lastFetch) < CACHE_DURATION && !isNewDay) {
-    console.log('Usando dados do cache')
     return cachedData
   }
 
   try {
-    console.log('Calculando dados de violência até ontem...')
-    
-    // Buscar dados históricos
     const historicalContext = HistoricalDataCalculator.getHistoricalContext()
-    
-    // Buscar casos recentes de notícias
-    const recentCases = await newsService.fetchRecentCases()
-    
-    // Total desde 2018 até ontem
     const countSince2018 = HistoricalDataCalculator.calculateTotalSince2018()
-    
-    // Contador desde publicação do site
     const siteStartDate = new Date('2024-12-09T00:00:00-03:00')
-    const yesterday = HistoricalDataCalculator.getCutoffDate()
+    const today = new Date()
     
-    let countSinceSite = 0
-    if (yesterday.getTime() > siteStartDate.getTime()) {
-      const daysSinceSite = (yesterday.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
-      countSinceSite = Math.floor(daysSinceSite * historicalContext.averagePerDay)
-    }
+    const daysSinceSite = (today.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
+    const countSinceSite = Math.floor(daysSinceSite * historicalContext.averagePerDay)
 
     const violenceData: FeminicideData = {
       count: countSinceSite,
       countSince2018,
       dailyAverage: historicalContext.averagePerDay,
-      lastUpdated: new Date().toISOString(),
-      recentCases: recentCases.slice(0, 12),
-      dataQuality: recentCases.length > 5 ? 'mixed' : 'statistical',
-      historicalContext
+      lastUpdated: today.toISOString(),
+      historicalContext,
     }
 
     cachedData = violenceData
     lastFetch = now
-    
-    console.log('Dados de violência calculados:', {
-      since2018: countSince2018.toLocaleString('pt-BR'),
-      avgPerDay: historicalContext.averagePerDay,
-      trend: historicalContext.currentTrend
-    })
     
     return violenceData
 
@@ -102,21 +63,16 @@ function getFallbackData(): FeminicideData {
   const countSince2018 = HistoricalDataCalculator.calculateTotalSince2018()
   
   const siteStartDate = new Date('2024-12-09T00:00:00-03:00')
-  const yesterday = HistoricalDataCalculator.getCutoffDate()
+  const today = new Date()
   
-  let countSinceSite = 0
-  if (yesterday.getTime() > siteStartDate.getTime()) {
-    const daysSinceSite = (yesterday.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
-    countSinceSite = Math.floor(daysSinceSite * 1748) // Média conservadora
-  }
+  const daysSinceSite = (today.getTime() - siteStartDate.getTime()) / (1000 * 60 * 60 * 24)
+  const countSinceSite = Math.floor(daysSinceSite * 1748) // Média conservadora
 
   return {
     count: countSinceSite,
     countSince2018,
     dailyAverage: 1748,
-    lastUpdated: new Date().toISOString(),
-    recentCases: [],
-    dataQuality: 'statistical',
+    lastUpdated: today.toISOString(),
     historicalContext
   }
 }
@@ -136,7 +92,6 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'public, max-age=1800',
         'Access-Control-Allow-Origin': '*',
         'X-Processing-Time': processingTime.toString(),
-        'X-Data-Quality': data.dataQuality,
         'X-Total-Since-2018': data.countSince2018.toString(),
         'X-Last-Update': data.lastUpdated
       }

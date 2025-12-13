@@ -6,16 +6,13 @@ import {
   faExclamationTriangle,
   faSpinner,
   faBuilding,
-  faBolt,
-  faNewspaper,
   faPhone,
+  faUser,
   faShieldAlt,
-  faHome,
   faBalanceScale,
   faHandHoldingHeart,
   faHandBackFist
 } from '@fortawesome/free-solid-svg-icons'
-import { faUser } from '@fortawesome/free-solid-svg-icons/faUser'
 
 export default function Home() {
   const { data, isLoading, error, refetch } = useFeminicideData()
@@ -54,7 +51,7 @@ export default function Home() {
       <div className="container">
         <div className="error-section">
           <FontAwesomeIcon icon={faExclamationTriangle} className="error-icon" />
-          <h2>Erro ao carregar dados de violência</h2>
+          <h2>Erro ao carregar dados</h2>
           <p>{error}</p>
           <button 
             className="retry-button"
@@ -68,7 +65,6 @@ export default function Home() {
 
   return (
     <div className="container">
-      {/* Contador Principal - Violência Geral */}
       <div className="main-counter-section">
         <div className="period-label">NÃO É SEGURO SER MULHER NO BRASIL</div>
         <div className="main-death-counter">
@@ -85,7 +81,7 @@ export default function Home() {
       <div className="message-section">
         <h2>PAREM DE NOS MATAR</h2>
         <p>
-          De janeiro de 2018 até ontem, <strong>{formatNumber(data.countSince2018)}</strong> mulheres 
+          De janeiro de 2018 até dezembro de 2025, <strong>{formatNumber(data.countSince2018)}</strong> mulheres 
           brasileiras sofreram algum tipo de violência registrada oficialmente.
         </p>
         <p>
@@ -139,27 +135,18 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Explicação da Metodologia Expandida */}
       <div className="methodology-section">
         <h3>METODOLOGIA DO PROJETO</h3>
         <p>
-          Este contador compila <strong>todos os tipos de violência contra a mulher</strong> registrados 
-          até ontem ({getCutoffInfo()}), incluindo assassinatos, agressões físicas, violência doméstica, 
+          Este contador tem finalidade de protesto e compila <strong>todos os tipos de violência contra a mulher</strong> registrados 
+          de janeiro de 2018 até dezembro de 2024 e usa projeções para o ano de 2025. São incluídos assassinatos, agressões físicas, violência doméstica, 
           assédio sexual, violência psicológica e ameaças.
         </p>
         
         <div className="methodology-sources">
           <div className="source-item">
             <FontAwesomeIcon icon={faBuilding} className="source-icon" />
-            <span>Dados oficiais: IBGE, IPEA, FBSP, SSPs Estaduais e Anuário de Segurança Pública</span>
-          </div>
-          <div className="source-item">
-            <FontAwesomeIcon icon={faBolt} className="source-icon" />
-            <span>Cálculo em tempo real da média diária a cada novo carregamento</span>
-          </div>
-          <div className="source-item">
-            <FontAwesomeIcon icon={faNewspaper} className="source-icon" />
-            <span>Fontes jornalísticas: G1, Portal da Mulher, CNN Brasil</span>
+            <span>Fontes IBGE, IPEA, FBSP, SSPs Estaduais e Anuário de Segurança Pública</span>
           </div>
         </div>
       </div>
@@ -167,10 +154,10 @@ export default function Home() {
       <div className="source-section">
         <p>
           <small>
-            <strong>Período:</strong> Janeiro de 2018 até {getCutoffInfo()}<br />
+            <strong>Período:</strong> Janeiro de 2018 até Dezembro de 2025<br />
             <a href={process.env.NEXT_PUBLIC_GITHUB_URL} 
                target="_blank" rel="noopener noreferrer">
-              Projeto open source criado por @derrihuizabelle
+              Projeto open source criado por @derrihuizabelle, contribua
             </a>
           </small>
         </p>
