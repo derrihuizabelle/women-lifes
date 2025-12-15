@@ -1,5 +1,28 @@
 # Contador Histórico de Violência Contra a Mulher - Brasil (2018-2025)
 
+## Sumário
+
+- [Contador Histórico de Violência Contra a Mulher - Brasil (2018-2025)](#contador-histórico-de-violência-contra-a-mulher---brasil-2018-2025)
+  - [Sumário](#sumário)
+  - [Contexto](#contexto)
+    - [Tipos de violência contabilizados](#tipos-de-violência-contabilizados)
+    - [Fontes de dados](#fontes-de-dados)
+  - [Tecnologias](#tecnologias)
+  - [Instalação](#instalação)
+    - [Pré-requisitos](#pré-requisitos)
+    - [Passos](#passos)
+  - [Como rodar](#como-rodar)
+    - [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
+    - [Build de produção](#build-de-produção)
+    - [Executar testes](#executar-testes)
+    - [Linting](#linting)
+  - [Estrutura do projeto](#estrutura-do-projeto)
+  - [Como contribuir](#como-contribuir)
+    - [Diretrizes de contribuição](#diretrizes-de-contribuição)
+    - [Atualização de dados](#atualização-de-dados)
+  - [Canais de denúncia](#canais-de-denúncia)
+  - [Licença](#licença)
+
 ## Contexto
 
 Este projeto é um contador de protesto que compila dados de violência contra a mulher no Brasil, abrangendo o período de janeiro de 2018 até dezembro de 2025. O objetivo é dar visibilidade à epidemia de violência que afeta mulheres brasileiras diariamente.
