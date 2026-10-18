@@ -6,7 +6,8 @@
             [wl.config :refer [topics]]
             [wl.db :as db]
             [wl.dedup :as dedup]
-            [wl.kafka :as kafka]))
+            [wl.kafka :as kafka]
+            [wl.metrics :as metrics]))
 
 (def disclaimer
   "Illustrative count of cases reported in the press and detected automatically. Not an official statistic; cases are not confirmed.")
@@ -42,8 +43,8 @@
                                                          "Access-Control-Allow-Origin" "*"}
                                                :body ": connected\n\n"}
                                            false)
-                               (swap! clients conj ch))
-                    :on-close (fn [ch _] (swap! clients disj ch))}))
+                               (metrics/gauge! "wl_sse_clients" {} (count (swap! clients conj ch))))
+                    :on-close (fn [ch _] (metrics/gauge! "wl_sse_clients" {} (count (swap! clients disj ch))))}))
 
 (defn- broadcast! [clients event]
   (let [msg (str "event: case\ndata: " (json/write-value-as-string event) "\n\n")]

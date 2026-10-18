@@ -1,6 +1,8 @@
 (ns wl.kafka
-  (:require [jsonista.core :as json])
+  (:require [jsonista.core :as json]
+            [wl.metrics :as metrics])
   (:import (java.time Duration)
+           (org.apache.kafka.common Metric MetricName)
            (java.util Properties)
            (org.apache.kafka.clients.admin AdminClient NewTopic)
            (org.apache.kafka.clients.consumer KafkaConsumer ConsumerRecord)
@@ -39,6 +41,16 @@
                           :enable.auto.commit "false"})
                   (StringDeserializer.) (StringDeserializer.)))
 
+(defn- report-lag! [^KafkaConsumer c group-id]
+  (when-let [lag (some (fn [[^MetricName n ^Metric m]]
+                         (when (and (= "records-lag-max" (.name n))
+                                    (= "consumer-fetch-manager-metrics" (.group n))
+                                    (not (contains? (.tags n) "topic")))
+                           (.metricValue m)))
+                       (.metrics c))]
+    (when-not (Double/isNaN lag)
+      (metrics/gauge! "wl_consumer_lag" {:group group-id} lag))))
+
 (defn run-consumer!
   "Polls `topic` and calls (handle key value) for each record, committing offsets
   only after the whole batch was handled (at-least-once; handlers must be idempotent).
@@ -55,7 +67,8 @@
                    (doseq [^ConsumerRecord r records]
                      (handle (.key r) (json/read-value (.value r) json/keyword-keys-object-mapper)))
                    (when-not (.isEmpty records)
-                     (.commitSync c))))
+                     (.commitSync c))
+                   (report-lag! c group-id)))
                (finally (.close c))))
            (str "consumer-" group-id))]
     (.start t)

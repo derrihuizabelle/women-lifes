@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: pipeline
+    static_configs:
+      # the pipeline runs on the host during development
+      - targets: ["host.docker.internal:9100"]

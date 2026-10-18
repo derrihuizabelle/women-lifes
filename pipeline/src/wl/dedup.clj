@@ -8,7 +8,8 @@
   (:require [next.jdbc :as jdbc]
             [wl.config :refer [topics]]
             [wl.db :as db]
-            [wl.kafka :as kafka])
+            [wl.kafka :as kafka]
+            [wl.metrics :as metrics])
   (:import (java.time Duration Instant)))
 
 (def window (Duration/ofDays 3))
@@ -61,20 +62,24 @@
                      db/opts))
 
 (defn handle!
-  "Returns the new case when the article created one, nil otherwise."
+  "Returns {:outcome kw} and, when the article created a case, :case."
   [ds article]
-  (when (and (:case? article) (:state article))
+  (cond
+    (not (:case? article)) {:outcome :not-a-case}
+    (not (:state article)) {:outcome :no-state}
+    :else
     (jdbc/with-transaction [tx ds]
       ;; serialize per state so two consumers cannot create the same case concurrently
       (jdbc/execute-one! tx ["select pg_advisory_xact_lock(hashtext(?))" (:state article)])
-      (when-not (jdbc/execute-one! tx ["select 1 from case_articles where article_id = ?" (:id article)])
+      (if (jdbc/execute-one! tx ["select 1 from case_articles where article_id = ?" (:id article)])
+        {:outcome :duplicate}
         (if-let [existing (first (filter #(same-case? % article) (recent-cases tx (:state article) (:published-at article))))]
           (do (attach! tx (:id existing) article)
               (fill-details! tx (:id existing) article)
-              nil)
+              {:outcome :merged})
           (let [kase (create-case! tx article)]
             (attach! tx (:id kase) article)
-            kase))))))
+            {:outcome :new-case :case kase}))))))
 
 (defn ->event [kase]
   {:id (:id kase)
@@ -90,5 +95,7 @@
   [{:keys [bootstrap producer ds]}]
   (kafka/run-consumer! bootstrap "dedup" (:news-classified topics)
                        (fn [_ article]
-                         (when-let [kase (handle! ds article)]
-                           (kafka/send! producer (:cases-reported topics) (str (:id kase)) (->event kase))))))
+                         (let [{:keys [outcome] kase :case} (metrics/timed "dedup" (handle! ds article))]
+                           (metrics/inc! "wl_dedup_articles_total" {:outcome (name outcome)})
+                           (when kase
+                             (kafka/send! producer (:cases-reported topics) (str (:id kase)) (->event kase)))))))

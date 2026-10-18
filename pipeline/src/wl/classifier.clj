@@ -6,7 +6,8 @@
   counted. Exclusions always win over matches."
   (:require [clojure.string :as str]
             [wl.config :refer [topics]]
-            [wl.kafka :as kafka]))
+            [wl.kafka :as kafka]
+            [wl.metrics :as metrics]))
 
 (defn normalize [s]
   (-> (or s "")
@@ -104,4 +105,6 @@
   [{:keys [bootstrap producer]}]
   (kafka/run-consumer! bootstrap "classifier" (:news-raw topics)
                        (fn [k article]
-                         (kafka/send! producer (:news-classified topics) k (classify article)))))
+                         (let [result (metrics/timed "classifier" (classify article))]
+                           (metrics/inc! "wl_articles_classified_total" {:result (if (:case? result) "case" "not_case")})
+                           (kafka/send! producer (:news-classified topics) k result)))))

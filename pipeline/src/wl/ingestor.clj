@@ -4,7 +4,8 @@
             [clojure.string :as str]
             [wl.config :refer [topics]]
             [wl.db :as db]
-            [wl.kafka :as kafka])
+            [wl.kafka :as kafka]
+            [wl.metrics :as metrics])
   (:import (java.net URI)
            (java.net.http HttpClient HttpRequest HttpResponse$BodyHandlers)
            (java.security MessageDigest)
@@ -70,6 +71,7 @@
             :when (not (db/seen? ds (:id article)))]
       (kafka/send! producer (:news-raw topics) (:id article) article)
       (db/mark-seen! ds (:id article) (:url article))
+      (metrics/inc! "wl_articles_ingested_total" {})
       (swap! published inc))
     @published))
 
@@ -83,6 +85,7 @@
                (try
                  (println "ingestor: published" (poll-once! deps) "new articles")
                  (catch Exception e
+                   (metrics/inc! "wl_ingestor_poll_errors_total" {})
                    (println "ingestor: poll failed:" (.getMessage e))))
                (Thread/sleep ^long poll-ms)))
            "ingestor")]

@@ -7,7 +7,8 @@
             [wl.db :as db]
             [wl.dedup :as dedup]
             [wl.ingestor :as ingestor]
-            [wl.kafka :as kafka]))
+            [wl.kafka :as kafka]
+            [wl.metrics :as metrics]))
 
 (defn -main [& args]
   (let [stages (if (seq args) (set args) #{"ingestor" "classifier" "dedup" "api"})
@@ -17,7 +18,7 @@
         deps {:bootstrap bootstrap :ds ds :producer producer}]
     (db/migrate! ds)
     (kafka/ensure-topics! bootstrap (vals topics))
-    (let [stops (cond-> []
+    (let [stops (cond-> [(metrics/start-server! (:metrics/port config))]
                   (stages "api") (conj (api/start! (assoc deps :port (:api/port config))))
                   (stages "dedup") (conj (dedup/start! deps))
                   (stages "classifier") (conj (classifier/start! deps))
