@@ -6,8 +6,7 @@
 .pnp.js
 .yarn/install-state.gz
 
-# lock files (optional - some teams prefer to commit these)
-package-lock.json
+# lock files (package-lock.json is committed so CI installs the same versions)
 yarn.lock
 pnpm-lock.yaml
 

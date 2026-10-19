@@ -11,4 +11,6 @@
  {:run {:main-opts ["-m" "wl.main"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
-         :main-opts ["-m" "cognitect.test-runner"]}}}
+         :main-opts ["-m" "cognitect.test-runner"]}
+  :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.08.29"}}
+         :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}}}

@@ -25,7 +25,8 @@ export default function LiveCases() {
   }, [paused, cases.length])
 
   // a new case arrives at the front of the list: show it
-  useEffect(() => setActive(0), [cases[0]?.id])
+  const newestId = cases[0]?.id
+  useEffect(() => setActive(0), [newestId])
 
   if (error) return null
 
