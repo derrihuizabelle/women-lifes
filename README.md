@@ -140,3 +140,7 @@ docs/ARCHITECTURE.md design notes
 - **180**: Central de Atendimento à Mulher (24h, free)
 - **190**: Polícia Militar (emergencies)
 - **181**: Disque Denúncia (anonymous)
+
+## License
+
+MIT. See [LICENSE](LICENSE).

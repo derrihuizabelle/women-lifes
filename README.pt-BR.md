@@ -195,4 +195,4 @@ Se você ou alguém que conhece está sofrendo violência:
 
 ## Licença
 
-Este projeto é open source.
+MIT. Veja o arquivo [LICENSE](LICENSE).
