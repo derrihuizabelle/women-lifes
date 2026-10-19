@@ -26,15 +26,17 @@ Each stage is an independent Kafka consumer group, so a slow or failing stage ne
 
 ## Key decisions
 
-- **Clojure** for the backend services (Kafka clients via Java interop or `jackdaw`), **Next.js** stays for the web.
+- **Clojure** for the backend services (Kafka clients via Java interop), **Next.js** stays for the web.
 - **Kafka (KRaft, single node) + Postgres** in `docker compose` for local development.
 - **Idempotency everywhere:** message keys are content hashes; consumers upsert, so replays and duplicate polls never inflate the counter.
-- **Deduplication heuristic (v1):** two classified articles are the same case when they share the state, their event dates are within 3 days, and their normalized titles are similar (token Jaccard above a threshold) or they share extracted details (victim age, city). Thresholds are tuned against a small labelled sample kept in the repo.
+- **Deduplication heuristic (v1):** an article belongs to an existing case when both are in the same state, published within 3 days of each other, and their known details (city, victim age) do not contradict. Missing details count as compatible, so the counter errs towards undercounting. Later articles fill in details the first one lacked. A Postgres advisory lock per state keeps concurrent dedup instances from creating the same case twice.
 - **Copyright and privacy:** store and show only headline, outlet, date, location and link. No article body, no victim photos.
 - **Sources:** start with Google News RSS search (`feminicídio`, pt-BR). Respect polling intervals; add other feeds later.
 - **Observability:** Prometheus metrics per stage (articles ingested, classified as case / not case, duplicates merged, cases emitted, consumer lag) and a Grafana dashboard.
 
 ## Plan
+
+All steps are implemented; see the [README](../README.md) for how to run it and the known limitations.
 
 1. **Setup** — `docker compose` (Kafka, Postgres), Clojure project skeleton (`deps.edn`), topics created on startup.
 2. **Ingestor** — poll RSS, publish to `news.raw`; tests with a recorded feed fixture.
