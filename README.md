@@ -9,6 +9,10 @@ A protest counter for violence against women in Brazil. The page has two parts:
 
 > **What the live number means.** It counts deaths *reported in the press* and detected automatically since the pipeline started running. It is illustrative: not an official statistic, and no case is confirmed as a femicide. The page says this next to the number, and every carousel item links to the original article.
 
+![Live counter going from 7 to 8 as a new case arrives over Server-Sent Events](docs/live-counter.gif)
+
+*The live counter receiving a new case. The Curitiba story in this clip is a test article injected into `news.raw` for the recording and deleted afterwards.*
+
 Leia em português: [README.pt-BR.md](README.pt-BR.md)
 
 ## Architecture
