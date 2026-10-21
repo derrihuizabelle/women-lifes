@@ -1,6 +1,7 @@
 'use client'
 
 import { useFeminicideData } from '../hooks/useFeminicideData'
+import LiveCases from './LiveCases'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faExclamationTriangle,
@@ -65,6 +66,8 @@ export default function Home() {
 
   return (
     <div className="container">
+      <LiveCases />
+
       <div className="main-counter-section">
         <div className="period-label">NÃO É SEGURO SER MULHER NO BRASIL</div>
         <div className="main-death-counter">

@@ -1,196 +1,146 @@
-# Contador Histórico de Violência Contra a Mulher - Brasil (2018-2025)
+# Women's Lives
 
-## Sumário
+[![CI](https://github.com/derrihuizabelle/women-lifes/actions/workflows/ci.yml/badge.svg)](https://github.com/derrihuizabelle/women-lifes/actions/workflows/ci.yml)
 
-- [Contador Histórico de Violência Contra a Mulher - Brasil (2018-2025)](#contador-histórico-de-violência-contra-a-mulher---brasil-2018-2025)
-  - [Sumário](#sumário)
-  - [Contexto](#contexto)
-    - [Tipos de violência contabilizados](#tipos-de-violência-contabilizados)
-    - [Fontes de dados](#fontes-de-dados)
-  - [Tecnologias](#tecnologias)
-  - [Instalação](#instalação)
-    - [Pré-requisitos](#pré-requisitos)
-    - [Passos](#passos)
-  - [Como rodar](#como-rodar)
-    - [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
-    - [Build de produção](#build-de-produção)
-    - [Executar testes](#executar-testes)
-    - [Linting](#linting)
-  - [Estrutura do projeto](#estrutura-do-projeto)
-  - [Como contribuir](#como-contribuir)
-    - [Diretrizes de contribuição](#diretrizes-de-contribuição)
-    - [Atualização de dados](#atualização-de-dados)
-  - [Canais de denúncia](#canais-de-denúncia)
-  - [Licença](#licença)
+A protest counter for violence against women in Brazil. The page has two parts:
 
-## Contexto
+- **Live counter:** goes up every time a Brazilian news outlet reports a woman's death as a possible femicide, with the latest stories in a carousel below it. It is fed by a streaming pipeline (Clojure, Kafka, Postgres) that reads the news, classifies each article, and groups articles about the same death into one case.
+- **Historical counter:** an estimate of cases since 2018, built from official yearly reports (Atlas da Violência, Anuário Brasileiro de Segurança Pública, Disque 180, state security departments).
 
-Este projeto é um contador de protesto que compila dados de violência contra a mulher no Brasil, abrangendo o período de janeiro de 2018 até dezembro de 2025. O objetivo é dar visibilidade à epidemia de violência que afeta mulheres brasileiras diariamente.
+> **What the live number means.** It counts deaths *reported in the press* and detected automatically since the pipeline started running. It is illustrative: not an official statistic, and no case is confirmed as a femicide. The page says this next to the number, and every carousel item links to the original article.
 
-### Tipos de violência contabilizados
+![Live counter going from 7 to 8 as a new case arrives over Server-Sent Events](docs/live-counter.gif)
 
-- Feminicídios
-- Agressões físicas
-- Violência doméstica
-- Assédio sexual
-- Violência psicológica
-- Ameaças
+*The live counter receiving a new case. The Curitiba story in this clip is a test article injected into `news.raw` for the recording and deleted afterwards.*
 
-### Fontes de dados
+Leia em português: [README.pt-BR.md](README.pt-BR.md)
 
-- Atlas da Violência (IPEA/FBSP)
-- Anuário Brasileiro de Segurança Pública
-- Disque 180 - Central de Atendimento à Mulher
-- Secretarias de Segurança Pública Estaduais (SSPs)
-- IBGE
+## Architecture
 
-Os dados de 2025 são projeções baseadas nas tendências históricas dos anos anteriores.
-
-## Tecnologias
-
-- Next.js 14
-- React 18
-- TypeScript
-- Jest + Testing Library (testes)
-- Font Awesome (ícones)
-
-## Instalação
-
-### Pré-requisitos
-
-- Node.js 18 ou superior
-- npm ou yarn
-
-### Passos
-
-1. Clone o repositório:
-
-```bash
-git clone https://github.com/derrihuizabelle/women-lifes
-cd women-lifes
+```
+ Google News RSS ──► ingestor ──► news.raw ──► classifier ──► news.classified ──► dedup ──► cases.reported ──► api ──► SSE ──► web
+                                  (Kafka)                       (Kafka)             │         (Kafka)
+                                                                                    └──► Postgres ◄──────────────┘
 ```
 
-2. Instale as dependências:
+Each stage is its own Kafka consumer group. A slow or failing stage does not block the others, and any stage can be replayed from its input topic.
+
+| Stage | Input → output | What it does |
+|---|---|---|
+| ingestor | RSS → `news.raw` | Polls the feed every 5 minutes. The article id is the SHA-256 of its URL, and ids already seen are skipped, so re-polling never republishes an article. |
+| classifier | `news.raw` → `news.classified` | Rule-based, for pt-BR headlines with accents removed. Keeps articles that report a specific death; drops attempts, trials, sentencing, statistics, laws and campaigns. Extracts state, city and victim age. |
+| dedup | `news.classified` → `cases.reported` + Postgres | Groups follow-ups and coverage by different outlets into one case. Emits an event only when a new case is created. |
+| api | Postgres, `cases.reported` → HTTP | `GET /stats`, `GET /cases?limit=10`, `GET /events` (Server-Sent Events), `GET /health`. |
+| web | api | Next.js page: counter, carousel and disclaimer. Loads the current state, then updates live from the SSE stream. |
+
+More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Design decisions and trade-offs
+
+**Undercount rather than overcount.** The same death shows up as "woman shot in DF", "ex-husband arrested", "victim buried", across many outlets. Dedup treats an article as part of an existing case when both are in the same state, within 3 days of each other, and their known city and victim age do not contradict. When a detail is missing, it merges. Two unrelated deaths in the same state in the same few days can therefore be counted once. For a protest counter, missing a case is a better failure than inventing one.
+
+**Rules before a model.** The classifier is a list of regular expressions tested against real labelled headlines (`pipeline/test/wl/classifier_test.clj`). It is fast, free, explainable, and its mistakes are easy to turn into test cases. It sits behind a single `classify` function, so an LLM classifier can replace it later without touching the other stages.
+
+**Idempotent at every step.** Article ids are content hashes, consumers commit offsets only after handling a batch (at-least-once), and the database rejects a second insert of the same article. Replays and duplicate deliveries do not move the counter. Dedup takes a Postgres advisory lock per state, so two instances cannot create the same case at once.
+
+**One stream per API instance.** Each API process reads `cases.reported` with its own consumer group, starting from the latest offset, so every instance pushes every new case to its own SSE clients. History comes from Postgres, not from the topic.
+
+**Copyright and privacy.** Only the headline, outlet, date, place and link are stored and shown. No article body, no photos, no victim names beyond what the headline contains.
+
+### Known limitations
+
+- Cities are recognised from a fixed list; a case in a city that is not on it gets only the state, and a case with no recognisable state is skipped.
+- The carousel shows the headline of the first article processed for each case, which is not always the most informative one.
+- If publishing to `cases.reported` fails after the case is saved, the case is counted but that live update is lost. Pages pick it up on the next load.
+- There is a single source (Google News RSS), so coverage depends on what it indexes.
+
+In a first run against the live feed (October 2026), 101 articles produced 14 classified as reporting a death and 7 distinct cases: 5 articles were merged into existing cases and 2 had no recognisable state.
+
+## Observability
+
+The pipeline exposes Prometheus metrics on port 9100 (`/metrics`):
+
+| Metric | Type | Labels |
+|---|---|---|
+| `wl_articles_ingested_total` | counter | |
+| `wl_ingestor_poll_errors_total` | counter | |
+| `wl_articles_classified_total` | counter | `result` (`case`, `not_case`) |
+| `wl_dedup_articles_total` | counter | `outcome` (`new-case`, `merged`, `duplicate`, `no-state`, `not-a-case`) |
+| `wl_stage_seconds_sum`, `wl_stage_seconds_count` | counter | `stage` |
+| `wl_consumer_lag` | gauge | `group` |
+| `wl_sse_clients` | gauge | |
+
+`docker compose` also starts Prometheus (http://localhost:9090) and Grafana with a provisioned dashboard at http://localhost:3001/d/womens-lives-pipeline (anonymous read-only access).
+
+## Running locally
+
+Requirements: Docker (or Colima), Java 21+, the [Clojure CLI](https://clojure.org/guides/install_clojure), Node.js 20+.
 
 ```bash
+# Kafka, Postgres, Prometheus and Grafana
+docker compose up -d
+
+# Pipeline: creates the topics and tables, then runs all four stages in one process
+cd pipeline
+clojure -M:run
+
+# Web, in another terminal
 npm install
-```
-
-## Como rodar
-
-### Ambiente de desenvolvimento
-
-```bash
 npm run dev
 ```
 
-O projeto estará disponível em `http://localhost:3000`.
+Open http://localhost:3000. The first poll runs on startup, so cases from the current feed appear within a few seconds.
 
-### Build de produção
+To run only some stages in a process, name them: `clojure -M:run ingestor classifier`.
+
+Configuration is read from environment variables:
+
+| Variable | Default |
+|---|---|
+| `KAFKA_BOOTSTRAP` | `localhost:9092` |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `localhost`, `5432`, `womens_lives`, `wl`, `wl` |
+| `FEED_URL` | Google News RSS search for "feminicídio" (pt-BR) |
+| `POLL_MS` | `300000` (5 minutes) |
+| `API_PORT` | `8080` |
+| `METRICS_PORT` | `9100` |
+| `NEXT_PUBLIC_PIPELINE_URL` (web) | `http://localhost:8080` |
+
+## Tests and CI
 
 ```bash
-npm run build
-npm start
-```
-
-### Executar testes
-
-```bash
-# Rodar todos os testes
+# Web: lint, types, unit tests
+npm run lint
+npx tsc --noEmit
 npm test
 
-# Rodar testes em modo watch
-npm run test:watch
-
-# Rodar testes com cobertura
-npm run test:coverage
+# Pipeline: lint (clj-kondo) and tests
+cd pipeline
+clojure -M:lint
+clojure -M:test
 ```
 
-### Linting
+GitHub Actions runs all of the above, plus `next build`, on every pull request and on pushes to `main`.
 
-```bash
-npm run lint
-```
-
-## Estrutura do projeto
+## Project layout
 
 ```
-womens-life/
-├── app/                    # Páginas e rotas (App Router do Next.js)
-│   ├── api/               # Rotas de API
-│   │   └── feminicide-data/
-│   ├── globals.css        # Estilos globais
-│   ├── layout.tsx         # Layout principal
-│   └── page.tsx           # Página inicial
-├── hooks/                  # React hooks customizados
-│   └── useFeminicideData.ts
-├── lib/                    # Bibliotecas e utilitários
-│   └── historicalData.ts  # Dados históricos e cálculos
-├── __tests__/             # Testes automatizados
-│   ├── api/
-│   ├── hooks/
-│   └── lib/
-└── public/                # Arquivos estáticos
+app/                 Next.js App Router: page, live counter (LiveCases.tsx), historical data API route
+hooks/               useLiveCases (stats + SSE), useFeminicideData (historical counter)
+lib/                 historical data and calculations
+__tests__/           Jest tests for the web app
+pipeline/
+  src/wl/            ingestor, classifier, dedup, api, kafka, db, metrics, config, main
+  test/wl/           classifier fixtures from real headlines, dedup and metrics tests
+observability/       Prometheus config, Grafana provisioning and dashboard
+docs/ARCHITECTURE.md design notes
 ```
 
-## Como contribuir
+## Where to get help (Brazil)
 
-Contribuições são bem-vindas. Você pode encontrar tarefas pendentes nas [issues do repositório](https://github.com/derrihuizabelle/women-lifes/issues), se estiver com dúvida de como começar. Siga os passos abaixo:
+- **180**: Central de Atendimento à Mulher (24h, free)
+- **190**: Polícia Militar (emergencies)
+- **181**: Disque Denúncia (anonymous)
 
-1. Faça um fork do projeto
+## License
 
-2. Crie uma branch para sua feature ou correção:
-
-```bash
-git checkout -b minha-contribuicao
-```
-
-3. Faça suas alterações e commits:
-
-```bash
-git commit -m "Descrição clara da alteração"
-```
-
-4. Certifique-se de que os testes passam:
-
-```bash
-npm test
-```
-
-5. Certifique-se de que o lint passa:
-
-```bash
-npm run lint
-```
-
-6. Envie suas alterações:
-
-```bash
-git push origin minha-contribuicao
-```
-
-7. Abra um Pull Request no repositório original
-
-### Diretrizes de contribuição
-
-- Mantenha o código em TypeScript
-- Adicione testes para novas funcionalidades
-- Siga o padrão de código existente
-- Atualize a documentação quando necessário
-- Use mensagens de commit claras e descritivas
-
-### Atualização de dados
-
-Se você possui dados atualizados de fontes oficiais sobre violência contra a mulher no Brasil, contribuições para atualizar o arquivo `lib/historicalData.ts` são especialmente bem-vindas. Certifique-se de incluir as fontes dos dados.
-
-## Canais de denúncia
-
-Se você ou alguém que conhece está sofrendo violência:
-
-- **Disque 180** - Central de Atendimento à Mulher (24h)
-- **Disque 190** - Polícia Militar (emergências)
-- **Disque 181** - Disk Denúncia (anônimo)
-
-## Licença
-
-Este projeto é open source. Consulte o arquivo LICENSE para mais detalhes.
+MIT. See [LICENSE](LICENSE).
