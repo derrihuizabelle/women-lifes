@@ -2,16 +2,14 @@
 
 [![CI](https://github.com/derrihuizabelle/women-lifes/actions/workflows/ci.yml/badge.svg)](https://github.com/derrihuizabelle/women-lifes/actions/workflows/ci.yml)
 
-A protest counter for violence against women in Brazil. The page has two parts:
+A real-time news ingestion pipeline. It reads Brazilian news, classifies each article with conservative rules, groups articles about the same event into one case, and pushes new cases to a web page over Server-Sent Events.
 
-- **Live counter:** goes up every time a Brazilian news outlet reports a woman's death as a possible femicide, with the latest stories in a carousel below it. It is fed by a streaming pipeline (Clojure, Kafka, Postgres) that reads the news, classifies each article, and groups articles about the same death into one case.
-- **Historical counter:** an estimate of cases since 2018, built from official yearly reports (Atlas da Violência, Anuário Brasileiro de Segurança Pública, Disque 180, state security departments).
+- **Stack:** Clojure 1.12, Kafka 3.8 (KRaft), Postgres 16, Next.js 14
+- **Reliability:** each stage is its own consumer group with at-least-once delivery; every stage is idempotent by article id, so replays and retries do not double count
+- **Observability:** Prometheus metrics and a provisioned Grafana dashboard
+- **CI:** lint, type check and tests for the web app and the pipeline on every pull request
 
-> **What the live number means.** It counts deaths *reported in the press* and detected automatically since the pipeline started running. It is illustrative: not an official statistic, and no case is confirmed as a femicide. The page says this next to the number, and every carousel item links to the original article.
-
-![Live counter going from 7 to 8 as a new case arrives over Server-Sent Events](docs/live-counter.gif)
-
-*The live counter receiving a new case. The Curitiba story in this clip is a test article injected into `news.raw` for the recording and deleted afterwards.*
+**Why it exists:** it feeds a protest counter for violence against women in Brazil. The number goes up when the press reports a woman's death as a possible femicide. It is an illustrative count, not an official statistic ([what the number means](#the-page)).
 
 Leia em português: [README.pt-BR.md](README.pt-BR.md)
 
@@ -34,6 +32,19 @@ Each stage is its own Kafka consumer group. A slow or failing stage does not blo
 | web | api | Next.js page: counter, carousel and disclaimer. Loads the current state, then updates live from the SSE stream. |
 
 More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## The page
+
+The page has two parts:
+
+- **Live counter:** goes up every time a Brazilian news outlet reports a woman's death as a possible femicide, with the latest stories in a carousel below it. It is fed by a streaming pipeline (Clojure, Kafka, Postgres) that reads the news, classifies each article, and groups articles about the same death into one case.
+- **Historical counter:** an estimate of cases since 2018, built from official yearly reports (Atlas da Violência, Anuário Brasileiro de Segurança Pública, Disque 180, state security departments).
+
+> **What the live number means.** It counts deaths *reported in the press* and detected automatically since the pipeline started running. It is illustrative: not an official statistic, and no case is confirmed as a femicide. The page says this next to the number, and every carousel item links to the original article.
+
+![Live counter going from 7 to 8 as a new case arrives over Server-Sent Events](docs/live-counter.gif)
+
+*The live counter receiving a new case. The Curitiba story in this clip is a test article injected into `news.raw` for the recording and deleted afterwards.*
 
 ## Design decisions and trade-offs
 
